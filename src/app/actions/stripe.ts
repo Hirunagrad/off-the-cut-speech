@@ -13,11 +13,12 @@ export async function createCheckoutSession(userId: string, challengeType: Chall
   try {
     console.log('Creating setup session for UID:', userId, 'challenge:', challengeType);
 
-    const getBaseUrl = () => {
+    const getBaseUrl = async () => {
       if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
       
       try {
-        const host = headers().get('host');
+        const headersList = await headers();
+        const host = headersList.get('host');
         if (host) {
           const protocol = host.includes('localhost') ? 'http' : 'https';
           return `${protocol}://${host}`;
@@ -30,7 +31,7 @@ export async function createCheckoutSession(userId: string, challengeType: Chall
       return 'http://localhost:3000';
     };
 
-    const baseUrl = getBaseUrl();
+    const baseUrl = await getBaseUrl();
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
