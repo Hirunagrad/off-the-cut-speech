@@ -147,10 +147,22 @@ You MUST return the response as a strict JSON object with exactly the following 
 }
 `;
 
+  // Sanitize MIME type for Gemini API compatibility.
+  // iOS Safari records in an MP4 container (audio/mp4), which Gemini's audio decoder 
+  // rejects, but Gemini's media engine parses perfectly if treated as 'video/mp4'.
+  let sanitizedMimeType = mimeType;
+  if (mimeType.includes('mp4') || mimeType.includes('m4a') || mimeType.includes('x-m4a')) {
+    sanitizedMimeType = 'video/mp4';
+  } else if (mimeType.includes('aac')) {
+    sanitizedMimeType = 'audio/aac';
+  } else if (!mimeType || mimeType.includes('octet-stream')) {
+    sanitizedMimeType = 'audio/webm'; // Default fallback
+  }
+
   const audioPart = {
     inlineData: {
       data: base64Audio,
-      mimeType: mimeType
+      mimeType: sanitizedMimeType
     }
   };
 
