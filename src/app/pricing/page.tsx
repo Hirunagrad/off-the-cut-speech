@@ -1,135 +1,98 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check, X } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { createCheckoutSession } from "../actions/stripe";
 import { useState } from "react";
 
+type ChallengeType = '7-day' | '14-day';
+
+const CHALLENGES = [
+  {
+    type: '7-day' as ChallengeType,
+    title: '7-Day Challenge',
+    price: '$20',
+    earn: 'earn up to $7 back',
+    cta: 'Start 7-Day Sprint →',
+  },
+  {
+    type: '14-day' as ChallengeType,
+    title: '14-Day Challenge',
+    price: '$30',
+    earn: 'earn up to $14 back',
+    cta: 'Start 14-Day Sprint →',
+  },
+];
+
 export default function PricingPage() {
   const { user } = useAuth();
   const router = useRouter();
-  const [isLoading, setIsLoading] = useState(false);
+  const [loadingType, setLoadingType] = useState<ChallengeType | null>(null);
 
-  const handleUpgrade = async () => {
+  const handleStart = async (challengeType: ChallengeType) => {
     if (!user) {
       router.push("/login");
       return;
     }
 
-    setIsLoading(true);
+    setLoadingType(challengeType);
     try {
-      const { url } = await createCheckoutSession(user.uid);
+      const { url } = await createCheckoutSession(user.uid, challengeType);
       if (url) {
         window.location.href = url;
       }
     } catch (error) {
       console.error("Failed to create checkout session:", error);
-      setIsLoading(false);
+      setLoadingType(null);
     }
   };
 
   return (
-    <div className="min-h-screen bg-background py-20 px-4">
-      <div className="max-w-7xl mx-auto space-y-12">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl md:text-5xl font-bold tracking-tight text-zinc-100">
-            Simple, transparent pricing
-          </h1>
-          <p className="text-xl text-zinc-400 max-w-2xl mx-auto">
-            Choose the plan that's right for you. Improve your speaking skills with AI-powered feedback.
-          </p>
-        </div>
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-24">
 
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
-          {/* Free Tier */}
-          <Card className="bg-zinc-900/50 border-zinc-800 flex flex-col">
-            <CardHeader>
-              <CardTitle className="text-2xl">Free Tier</CardTitle>
-              <CardDescription>Perfect for getting started</CardDescription>
-              <div className="mt-4 flex items-baseline text-5xl font-extrabold text-zinc-100">
-                $0
-                <span className="ml-1 text-xl font-medium text-zinc-400">/mo</span>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1">
-              <ul className="space-y-4 text-zinc-300">
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span>Real-time speech transcription</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span>Basic Gemini AI feedback</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span className="font-semibold text-white">Limited to 1 practice per day</span>
-                </li>
-                <li className="flex items-center opacity-50">
-                  <X className="h-5 w-5 text-zinc-500 mr-2 shrink-0" />
-                  <span>Unlimited practice sessions</span>
-                </li>
-              </ul>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                variant="outline" 
-                className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-300"
-                onClick={() => router.push(user ? "/dashboard" : "/login")}
-              >
-                {user ? "Go to Dashboard" : "Get Started"}
-              </Button>
-            </CardFooter>
-          </Card>
-
-          {/* Pro Tier */}
-          <Card className="bg-zinc-900/50 border-violet-500/50 shadow-lg shadow-violet-500/10 flex flex-col relative overflow-hidden">
-            <div className="absolute top-0 right-0 -mr-8 mt-4 w-32 bg-violet-600 text-white text-xs font-bold px-3 py-1 transform rotate-45 text-center">
-              POPULAR
-            </div>
-            <CardHeader>
-              <CardTitle className="text-2xl text-violet-400">Pro Tier</CardTitle>
-              <CardDescription>For serious improvement</CardDescription>
-              <div className="mt-4 flex items-baseline text-5xl font-extrabold text-zinc-100">
-                $10
-                <span className="ml-1 text-xl font-medium text-zinc-400">/mo</span>
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1">
-              <ul className="space-y-4 text-zinc-300">
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span>Real-time speech transcription</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span>Advanced Gemini AI feedback</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span className="font-semibold text-white">Unlimited practice sessions</span>
-                </li>
-                <li className="flex items-center">
-                  <Check className="h-5 w-5 text-emerald-500 mr-2 shrink-0" />
-                  <span>Priority support</span>
-                </li>
-              </ul>
-            </CardContent>
-            <CardFooter>
-              <Button 
-                className="w-full bg-violet-600 hover:bg-violet-700 text-white"
-                onClick={handleUpgrade}
-                disabled={isLoading}
-              >
-                {isLoading ? "Loading..." : "Upgrade to Pro"}
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+      {/* Header */}
+      <div className="text-center mb-16 space-y-4">
+        <h1 className="text-5xl md:text-6xl font-bold text-zinc-50 tracking-tight">
+          Start your{' '}
+          <span className="font-heading italic text-[#c084fc]">challenge</span>
+        </h1>
+        <p className="text-lg text-zinc-400 max-w-md mx-auto">
+          Pick a sprint. Complete every day and earn $1 per day back.
+        </p>
       </div>
+
+      {/* Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
+        {CHALLENGES.map((challenge) => (
+          <div
+            key={challenge.type}
+            className="group bg-zinc-900 border border-zinc-800 hover:border-[#c084fc]/40 rounded-2xl p-8 flex flex-col gap-6 transition-all duration-300 hover:shadow-[0_0_40px_rgba(192,132,252,0.08)] cursor-pointer"
+            onClick={() => handleStart(challenge.type)}
+          >
+            <div className="space-y-1">
+              <h2 className="text-2xl font-heading font-bold text-zinc-50">
+                {challenge.title}
+              </h2>
+              <p className="text-zinc-400 text-sm">
+                {challenge.price} · {challenge.earn}
+              </p>
+            </div>
+
+            <button
+              className="text-left text-[#c084fc] font-semibold text-base group-hover:underline underline-offset-4 transition-all disabled:opacity-50"
+              onClick={(e) => { e.stopPropagation(); handleStart(challenge.type); }}
+              disabled={loadingType !== null}
+            >
+              {loadingType === challenge.type ? 'Loading...' : challenge.cta}
+            </button>
+          </div>
+        ))}
+      </div>
+
+      {/* Footer disclaimer */}
+      <p className="mt-10 text-sm text-zinc-600 max-w-md text-center">
+        Your card is saved now but charged only at the end — price minus $1 for every day you complete.
+      </p>
     </div>
   );
 }
