@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, Square, Loader2, Trophy, AlertCircle, Lightbulb, Activity, Play, RotateCcw, Send } from "lucide-react";
-import { analyzeSpeech } from '../actions/analyze';
+import { analyzeSpeech, analyzeSpeechAudio } from '../actions/analyze';
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase/config";
 import { collection, addDoc, doc, updateDoc, increment, serverTimestamp, getDoc } from "firebase/firestore";
@@ -290,24 +290,21 @@ export default function PracticeRoom() {
   };
 
   const handleAnalysis = async () => {
-    // Sync ref from state in case recognition committed late
-    const finalTranscript = transcriptRef.current.trim() || transcript.trim();
-    transcriptRef.current = finalTranscript;
-
     setAnalysisError(null);
 
-    if (!finalTranscript) {
-      setAnalysisError("No speech detected. Please try recording again.");
-      return;
-    }
     if (!currentTopic) {
       setAnalysisError("No topic selected. Please spin for a topic first.");
       return;
     }
-    
+
+    if (audioChunksRef.current.length === 0) {
+      setAnalysisError("No audio recording found. Please try recording again.");
+      return;
+    }
+
     setIsAnalyzing(true);
     setLoadingProgress(0);
-    
+
     const loadingInterval = setInterval(() => {
       setLoadingProgress(prev => {
         if (prev >= 90) return prev;
@@ -316,36 +313,61 @@ export default function PracticeRoom() {
     }, 400);
 
     try {
-      const data = await analyzeSpeech(finalTranscript, currentTopic);
-      setResults(data);
-      // Play premium success chime
-      sounds.playSuccess();
+      const mimeType = mediaRecorderRef.current?.mimeType || 'audio/webm';
+      const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
 
-      if (user) {
-        await addDoc(collection(db, `users/${user.uid}/sessions`), {
-          date: serverTimestamp(),
-          topic: currentTopic,
-          transcript: finalTranscript,
-          scores: data.scores,
-          biggestImprovement: data.biggestImprovement,
-          flaggedWords: data.flaggedWords
-        });
+      const reader = new FileReader();
+      reader.readAsDataURL(audioBlob);
+      reader.onloadend = async () => {
+        try {
+          const base64data = reader.result as string;
+          const rawBase64 = base64data.split(',')[1];
 
-        const userRef = doc(db, "users", user.uid);
-        await updateDoc(userRef, {
-          streak_count: increment(1),
-          last_practice_date: serverTimestamp()
-        });
-      }
+          // Call our server action with base64 audio + mimeType
+          const data = await analyzeSpeechAudio(rawBase64, mimeType, currentTopic);
+          
+          setResults(data);
+          
+          if (data.transcript) {
+            setTranscript(data.transcript);
+            transcriptRef.current = data.transcript;
+          }
+
+          sounds.playSuccess();
+
+          if (user) {
+            await addDoc(collection(db, `users/${user.uid}/sessions`), {
+              date: serverTimestamp(),
+              topic: currentTopic,
+              transcript: data.transcript || "",
+              scores: data.scores,
+              biggestImprovement: data.biggestImprovement,
+              flaggedWords: data.flaggedWords
+            });
+
+            const userRef = doc(db, "users", user.uid);
+            await updateDoc(userRef, {
+              streak_count: increment(1),
+              last_practice_date: serverTimestamp()
+            });
+          }
+        } catch (innerError: any) {
+          console.error("Audio upload analysis failed:", innerError);
+          setAnalysisError("Analysis failed. Please try again.");
+        } finally {
+          clearInterval(loadingInterval);
+          setLoadingProgress(100);
+          setTimeout(() => {
+            setIsAnalyzing(false);
+          }, 300);
+        }
+      };
+
     } catch (error: any) {
-      console.error("Analysis failed:", error);
+      console.error("Analysis initialization failed:", error);
       setAnalysisError("Analysis failed. Please try again.");
-    } finally {
       clearInterval(loadingInterval);
-      setLoadingProgress(100);
-      setTimeout(() => {
-        setIsAnalyzing(false);
-      }, 300);
+      setIsAnalyzing(false);
     }
   };
 
