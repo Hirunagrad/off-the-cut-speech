@@ -1,6 +1,7 @@
 'use server';
 
 import Stripe from 'stripe';
+import { headers } from 'next/headers';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY as string, {
   apiVersion: '2024-04-10' as any,
@@ -14,6 +15,17 @@ export async function createCheckoutSession(userId: string, challengeType: Chall
 
     const getBaseUrl = () => {
       if (process.env.NEXT_PUBLIC_BASE_URL) return process.env.NEXT_PUBLIC_BASE_URL;
+      
+      try {
+        const host = headers().get('host');
+        if (host) {
+          const protocol = host.includes('localhost') ? 'http' : 'https';
+          return `${protocol}://${host}`;
+        }
+      } catch (e) {
+        // Fallback if headers are not available
+      }
+
       if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
       return 'http://localhost:3000';
     };

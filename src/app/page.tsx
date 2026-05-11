@@ -1,15 +1,127 @@
 "use client";
 
-import { useAuth } from "@/context/AuthContext";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { db } from "@/lib/firebase/config";
 import { doc, getDoc } from "firebase/firestore";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { sounds } from "@/lib/sound";
+import { Loader2 } from "lucide-react";
+
+const DEMO_TOPICS = {
+  Technology: [
+    "AI will do more harm than good.",
+    "Social media has destroyed genuine human connection.",
+    "Smartphones are making us less intelligent."
+  ],
+  Business: [
+    "Unpaid internships should be illegal.",
+    "The 4-day workweek should be mandatory.",
+    "Remote work is better than office work."
+  ],
+  Education: [
+    "Standardized testing is an outdated metric.",
+    "College degrees are no longer necessary for success.",
+    "Financial literacy should be a mandatory subject."
+  ],
+  Culture: [
+    "Cancel culture is toxic to society.",
+    "Art should not be separated from the artist.",
+    "Fast fashion should be heavily taxed."
+  ],
+  Sports: [
+    "The designated hitter rule ruined baseball.",
+    "College athletes should be paid salaries.",
+    "Esports should be in the Olympic games."
+  ],
+  Philosophy: [
+    "Free will is an illusion.",
+    "History always repeats itself.",
+    "Knowledge is not always a good thing."
+  ],
+  Politics: [
+    "Voting should be legally mandatory.",
+    "Term limits should apply to all politicians.",
+    "The electoral college should be abolished."
+  ],
+  Health: [
+    "Daily multivitamins do almost nothing for healthy adults.",
+    "Sugar should be regulated like alcohol.",
+    "Mental health days should be legally protected."
+  ],
+  Environment: [
+    "Bottled water should be banned wherever tap water is safe.",
+    "Nuclear energy is the only real solution.",
+    "Electric cars are not actually green yet."
+  ]
+};
 
 export default function Home() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [isSpinning, setIsSpinning] = useState(false);
+  const [hasSpun, setHasSpun] = useState(false);
+  const [displayedTopics, setDisplayedTopics] = useState<string[]>([
+    "The designated hitter rule ruined baseball.",
+    "Daily multivitamins do almost nothing for healthy adults.",
+    "Bottled water should be banned wherever tap water is safe."
+  ]);
+
+  const spinDemo = () => {
+    setIsSpinning(true);
+    setHasSpun(true);
+
+    let pool: string[] = [];
+    if (selectedCategory && DEMO_TOPICS[selectedCategory as keyof typeof DEMO_TOPICS]) {
+      pool = DEMO_TOPICS[selectedCategory as keyof typeof DEMO_TOPICS];
+    } else {
+      pool = Object.values(DEMO_TOPICS).flat();
+    }
+
+    let spins = 0;
+    const maxSpins = 18;
+    let delay = 50;
+
+    const run = () => {
+      spins++;
+      
+      const prev = pool[Math.floor(Math.random() * pool.length)];
+      const curr = pool[Math.floor(Math.random() * pool.length)];
+      const next = pool[Math.floor(Math.random() * pool.length)];
+      
+      setDisplayedTopics([prev, curr, next]);
+      sounds.playTick();
+
+      if (spins >= maxSpins) {
+        const finalCurr = pool[Math.floor(Math.random() * pool.length)];
+        let finalPrev = pool[Math.floor(Math.random() * pool.length)];
+        let finalNext = pool[Math.floor(Math.random() * pool.length)];
+        
+        while (finalPrev === finalCurr) {
+          finalPrev = pool[Math.floor(Math.random() * pool.length)];
+        }
+        while (finalNext === finalCurr || finalNext === finalPrev) {
+          finalNext = pool[Math.floor(Math.random() * pool.length)];
+        }
+
+        setDisplayedTopics([finalPrev, finalCurr, finalNext]);
+        setIsSpinning(false);
+        sounds.playReveal();
+      } else {
+        if (spins > 14) {
+          delay += 75;
+        } else if (spins > 8) {
+          delay += 35;
+        }
+        setTimeout(run, delay);
+      }
+    };
+
+    setTimeout(run, delay);
+  };
 
   useEffect(() => {
     if (!loading && user) {
@@ -205,6 +317,106 @@ export default function Home() {
               <p className="mt-6 text-xs font-bold tracking-widest uppercase text-zinc-600">End of Challenge</p>
             </div>
 
+          </div>
+        </div>
+      </section>
+
+      {/* ══ SECTION 2.5: INTERACTIVE DEMO SIMULATOR ══════════════ */}
+      <section className="relative px-6 py-20 overflow-hidden">
+        <div className="max-w-4xl mx-auto relative z-10 flex flex-col items-center">
+          
+          <div className="text-center space-y-4 mb-10">
+            <h2 className="text-3xl md:text-5xl font-bold text-zinc-50 tracking-tight">
+              Give it a <span className="font-[family-name:var(--font-playfair)] italic text-[#c084fc]">spin</span>
+            </h2>
+            <p className="text-sm md:text-base text-zinc-400 max-w-lg mx-auto">
+              Select a category, hit Spin, and see what topic the mechanical generator lands on.
+            </p>
+          </div>
+
+          {/* Category Select Pills */}
+          <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-2xl">
+            {Object.keys(DEMO_TOPICS).map((cat) => (
+              <button
+                key={cat}
+                disabled={isSpinning}
+                onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
+                className={`rounded-full px-4 py-1.5 text-xs font-semibold border transition-all ${
+                  selectedCategory === cat
+                    ? "bg-[#c084fc] text-zinc-950 border-[#c084fc]"
+                    : "bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:border-zinc-700"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+
+          {/* The Slot Machine Card */}
+          <div className="w-full max-w-2xl bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-10 md:p-14 flex flex-col items-center justify-center relative overflow-hidden shadow-[0_0_50px_rgba(192,132,252,0.03)] min-h-[350px]">
+            
+            {/* Soft decorative background curved shapes mimicking screenshot */}
+            <div className="absolute inset-0 pointer-events-none opacity-5">
+              <div className="absolute top-0 left-0 w-full h-full border-[30px] border-zinc-500 rounded-full translate-x-[-40%] translate-y-[20%]" />
+              <div className="absolute top-0 right-0 w-full h-full border-[30px] border-zinc-500 rounded-full translate-x-[40%] translate-y-[-20%]" />
+            </div>
+
+            {/* Vertical Slots */}
+            <div className="w-full flex flex-col items-center justify-center relative py-6 space-y-6 select-none">
+              
+              {/* Divider lines mirroring screenshot */}
+              <div className="absolute top-[28%] left-0 right-0 h-[1px] bg-zinc-800/40" />
+              <div className="absolute bottom-[28%] left-0 right-0 h-[1px] bg-zinc-800/40" />
+
+              {/* Row 1: Previous (smaller, faded, blurry) */}
+              <div className="text-xs md:text-sm text-zinc-600 font-heading text-center line-clamp-1 opacity-30 filter blur-[0.5px] transition-all duration-75">
+                {displayedTopics[0]}
+              </div>
+
+              {/* Row 2: Selected (large, bold, Playfair serif, white/off-white text) */}
+              <div className={`text-base md:text-2xl font-heading text-center font-bold px-4 transition-all duration-75 ${
+                isSpinning ? 'opacity-40 blur-[1px] scale-95 text-zinc-400' : 'opacity-100 scale-100 text-zinc-50 font-[family-name:var(--font-playfair)] italic'
+              }`}>
+                {displayedTopics[1]}
+              </div>
+
+              {/* Row 3: Next (smaller, faded, blurry) */}
+              <div className="text-xs md:text-sm text-zinc-600 font-heading text-center line-clamp-1 opacity-30 filter blur-[0.5px] transition-all duration-75">
+                {displayedTopics[2]}
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-center mt-12 w-full max-w-md relative z-10">
+              <button
+                onClick={spinDemo}
+                disabled={isSpinning}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#c084fc] hover:bg-[#a855f7] text-zinc-950 font-bold rounded-full px-8 py-3.5 text-base shadow-[0_0_30px_rgba(192,132,252,0.25)] hover:shadow-[0_0_40px_rgba(192,132,252,0.4)] hover:scale-[1.03] active:scale-[0.98] transition-all disabled:opacity-50"
+              >
+                {isSpinning ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Spinning...</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-lg">✨</span>
+                    <span>Spin</span>
+                  </>
+                )}
+              </button>
+
+              <Link
+                href="/pricing"
+                className={`w-full sm:w-auto inline-flex items-center justify-center gap-1 font-bold rounded-full px-8 py-3.5 text-base transition-all border ${
+                  hasSpun
+                    ? "bg-zinc-800 border-zinc-700 hover:bg-zinc-700 text-zinc-100 hover:scale-[1.03] active:scale-[0.98]"
+                    : "bg-zinc-900/40 border-zinc-800 text-zinc-500 cursor-not-allowed pointer-events-none"
+                }`}
+              >
+                Unlock my analysis →
+              </Link>
+            </div>
           </div>
         </div>
       </section>
