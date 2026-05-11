@@ -84,11 +84,6 @@ export default function DashboardPage() {
               <div className="space-y-3 text-sm text-zinc-300">
                 <p><span className="font-medium text-zinc-500">Email:</span> {user.email}</p>
                 <p><span className="font-medium text-zinc-500">Role:</span> <span className="uppercase text-violet-400 font-bold">{userData?.role || 'free'}</span></p>
-                {user.emailVerified ? (
-                  <span className="inline-flex items-center rounded-full bg-green-500/10 px-2 py-1 text-xs font-medium text-green-400 ring-1 ring-inset ring-green-500/20">Verified</span>
-                ) : (
-                  <span className="inline-flex items-center rounded-full bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-400 ring-1 ring-inset ring-yellow-500/20">Unverified</span>
-                )}
               </div>
             </CardContent>
           </Card>
@@ -159,21 +154,33 @@ export default function DashboardPage() {
                     <thead className="text-xs text-zinc-400 uppercase bg-zinc-800/80">
                       <tr>
                         <th className="px-6 py-4 font-semibold">Date</th>
-                        <th className="px-6 py-4 font-semibold text-emerald-400">Score</th>
-                        <th className="px-6 py-4 font-semibold text-amber-400">Filler Words</th>
+                        <th className="px-6 py-4 font-semibold text-zinc-300">Topic</th>
+                        <th className="px-6 py-4 font-semibold text-[#c084fc]">Clarity</th>
+                        <th className="px-6 py-4 font-semibold text-yellow-400">Filler Rate</th>
+                        <th className="px-6 py-4 font-semibold text-orange-400">Confidence</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-800">
                       {sessions.map((session) => (
                         <tr key={session.id} className="hover:bg-zinc-800/40 transition-colors">
-                          <td className="px-6 py-4">
+                          <td className="px-6 py-4 text-zinc-400 whitespace-nowrap">
                             {session.date ? new Date(session.date.seconds * 1000).toLocaleString(undefined, {
                               year: 'numeric', month: 'short', day: 'numeric',
                               hour: '2-digit', minute: '2-digit'
                             }) : 'Just now'}
                           </td>
-                          <td className="px-6 py-4 font-bold text-emerald-300">{session.confidenceScore}</td>
-                          <td className="px-6 py-4 font-bold text-amber-300">{session.fillerWordsCount}</td>
+                          <td className="px-6 py-4 text-zinc-300 max-w-[200px] truncate" title={session.topic}>
+                            {session.topic || '—'}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-[#c084fc]">
+                            {session.scores?.clarity?.score ?? '—'}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-yellow-300">
+                            {session.scores?.fillerRate?.score ?? '—'}
+                          </td>
+                          <td className="px-6 py-4 font-bold text-orange-300">
+                            {session.scores?.confidence?.score ?? '—'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

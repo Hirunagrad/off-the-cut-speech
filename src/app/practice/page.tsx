@@ -520,13 +520,13 @@ export default function PracticeRoom() {
               {/* Left Column: Highlighted Transcript */}
               <div className="lg:col-span-7 flex flex-col space-y-4">
                 <h3 className="text-sm font-bold tracking-widest uppercase text-zinc-500 px-2">Your Transcript</h3>
-                <Card className="bg-[#18181b] border-zinc-800/50 p-8 shadow-2xl h-full flex flex-col justify-between">
+                <Card className="bg-[#18181b] border-zinc-800/50 p-8 shadow-2xl flex flex-col gap-6">
                   <div>
                     {renderHighlightedTranscript(transcriptRef.current, results.flaggedWords)}
                   </div>
                   
                   {/* Legend */}
-                  <div className="flex flex-wrap gap-6 mt-12 pt-6 border-t border-zinc-800/50 text-xs font-semibold uppercase tracking-wider">
+                  <div className="flex flex-wrap gap-6 pt-6 border-t border-zinc-800/50 text-xs font-semibold uppercase tracking-wider">
                     <div className="flex items-center gap-2 text-zinc-400">
                       <span className="w-3 h-3 rounded-full bg-red-500/50" /> Filler
                     </div>
@@ -588,17 +588,17 @@ export default function PracticeRoom() {
                    </div>
                    <p className="italic text-zinc-200 leading-relaxed text-lg">"{results.biggestImprovement}"</p>
                    
-                   <div className="mt-8 flex flex-col sm:flex-row gap-3">
+                   <div className="mt-8 flex flex-col gap-3">
                      <Button 
                        onClick={() => window.location.reload()}
-                       className="bg-[#c084fc] hover:bg-[#a855f7] text-zinc-950 font-bold rounded-full flex-1"
+                       className="w-full bg-[#c084fc] hover:bg-[#a855f7] text-zinc-950 font-bold rounded-full"
                      >
                        Practice Another Topic
                      </Button>
                      <Button 
                        variant="outline"
                        onClick={() => window.location.href = '/dashboard'}
-                       className="border-zinc-700 hover:bg-zinc-800 text-zinc-300 rounded-full flex-1 bg-transparent"
+                       className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-300 rounded-full bg-transparent"
                      >
                        Dashboard
                      </Button>

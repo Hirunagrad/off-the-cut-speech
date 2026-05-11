@@ -58,12 +58,41 @@ Speech to analyze:
 
   try {
     const result = await model.generateContent(prompt);
-    const responseText = result.response.text();
-    // Clean potential markdown blocks if Gemini decides to ignore instructions
-    const cleanJson = responseText.replace(/```json/gi, "").replace(/```/g, "").trim();
-    return JSON.parse(cleanJson);
-  } catch (error) {
+    
+    let responseText = "";
+    try {
+      responseText = result.response.text();
+    } catch (textError: any) {
+      throw new Error(`Failed to extract text from response. Safety block? ${textError.message}`);
+    }
+    
+    // Extract JSON securely in case Gemini adds conversational text
+    const firstBrace = responseText.indexOf('{');
+    const lastBrace = responseText.lastIndexOf('}');
+    
+    if (firstBrace === -1 || lastBrace === -1) {
+      throw new Error(`No JSON object found in response. Raw response: ${responseText}`);
+    }
+    
+    const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
+    
+    try {
+      return JSON.parse(cleanJson);
+    } catch (parseError: any) {
+      throw new Error(`JSON Parse Error: ${parseError.message}. Clean JSON: ${cleanJson}`);
+    }
+    
+  } catch (error: any) {
     console.error("Error analyzing speech:", error);
-    throw new Error("Failed to analyze speech.");
+    // Return a safe fallback instead of throwing a 500 error
+    return {
+      scores: {
+        clarity: { score: 0, feedback: "Analysis failed. Please try again." },
+        fillerRate: { score: 0, feedback: "Unable to parse transcript." },
+        confidence: { score: 0, feedback: "API error occurred." }
+      },
+      biggestImprovement: "We encountered an error analyzing your speech (likely a rate limit or network issue). Please try again later.",
+      flaggedWords: []
+    };
   }
 }
