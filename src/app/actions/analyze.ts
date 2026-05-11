@@ -189,7 +189,7 @@ You MUST return the response as a strict JSON object with exactly the following 
         fillerRate: { score: 0, feedback: "Unable to analyze audio." },
         confidence: { score: 0, feedback: "API error occurred." }
       },
-      biggestImprovement: "We encountered an error transcribing and analyzing your audio (likely due to an unsupported audio format on your device). Please try again or record in desktop Chrome.",
+      biggestImprovement: `We encountered an error transcribing and analyzing your audio: ${error.message || error}. Please try again or record in desktop Chrome.`,
       flaggedWords: []
     };
   }
