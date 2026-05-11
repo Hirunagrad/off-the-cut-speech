@@ -1,0 +1,32 @@
+2026-05-11T09:30:41.426Z - Received a POST request to webhook
+2026-05-11T09:30:41.429Z - Signature verified successfully
+2026-05-11T09:30:41.430Z - Webhook Event: checkout.session.completed
+2026-05-11T09:30:41.430Z - Upgrading user: 69HVLH2KCnRXKtocmcUbraLk2FI3
+2026-05-11T09:30:41.772Z - User 69HVLH2KCnRXKtocmcUbraLk2FI3 upgraded to pro successfully.
+2026-05-11T09:38:46.581Z - Received a POST request to webhook
+2026-05-11T09:38:46.584Z - Signature verified successfully
+2026-05-11T09:38:46.584Z - Webhook Event: product.created
+2026-05-11T09:38:46.606Z - Received a POST request to webhook
+2026-05-11T09:38:46.608Z - Signature verified successfully
+2026-05-11T09:38:46.609Z - Webhook Event: price.created
+2026-05-11T09:38:48.923Z - Received a POST request to webhook
+2026-05-11T09:38:48.927Z - Signature verified successfully
+2026-05-11T09:38:48.927Z - Webhook Event: charge.succeeded
+2026-05-11T09:38:48.977Z - Received a POST request to webhook
+2026-05-11T09:38:48.978Z - Signature verified successfully
+2026-05-11T09:38:48.978Z - Webhook Event: checkout.session.completed
+2026-05-11T09:38:48.979Z - No userId found in session metadata
+2026-05-11T09:38:49.015Z - Received a POST request to webhook
+2026-05-11T09:38:49.017Z - Signature verified successfully
+2026-05-11T09:38:49.018Z - Webhook Event: payment_intent.succeeded
+2026-05-11T09:38:49.072Z - Received a POST request to webhook
+2026-05-11T09:38:49.074Z - Signature verified successfully
+2026-05-11T09:38:49.074Z - Webhook Event: payment_intent.created
+2026-05-11T09:38:51.462Z - Received a POST request to webhook
+2026-05-11T09:38:51.463Z - Signature verified successfully
+2026-05-11T09:38:51.464Z - Webhook Event: charge.updated
+2026-05-11T09:58:59.112Z - Received a POST request to webhook
+2026-05-11T09:58:59.116Z - Signature verified successfully
+2026-05-11T09:58:59.117Z - Webhook Event: checkout.session.completed
+2026-05-11T09:58:59.117Z - Upgrading user: 2XUnuGxcKoOOP7sQErit1ieO9ym1
+2026-05-11T09:59:00.702Z - User 2XUnuGxcKoOOP7sQErit1ieO9ym1 upgraded to pro successfully.
