@@ -48,7 +48,7 @@ export default function PricingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-6 py-24">
+    <div className="min-h-screen bg-transparent flex flex-col items-center justify-center px-6 py-24">
 
       {/* Header */}
       <div className="text-center mb-16 space-y-4">

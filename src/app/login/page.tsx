@@ -22,7 +22,14 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      router.push("/dashboard");
+      getDoc(doc(db, "users", user.uid)).then(snap => {
+        const data = snap.data();
+        if (data?.onboardingComplete) {
+          router.push("/dashboard");
+        } else {
+          router.push("/onboarding");
+        }
+      });
     }
   }, [user, loading, router]);
 
@@ -37,12 +44,20 @@ export default function LoginPage() {
           email: user.email,
           role: 'free',
           streak_count: 0,
-          last_practice_date: null
+          last_practice_date: null,
+          onboardingComplete: false
         });
+        router.push("/onboarding");
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists() && userDoc.data()?.onboardingComplete) {
+          router.push("/dashboard");
+        } else {
+          router.push("/onboarding");
+        }
       }
-      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message);
     }
@@ -61,11 +76,18 @@ export default function LoginPage() {
           email: user.email,
           role: 'free',
           streak_count: 0,
-          last_practice_date: null
+          last_practice_date: null,
+          onboardingComplete: false
         });
+        router.push("/onboarding");
+      } else {
+        const data = userDocSnap.data();
+        if (data?.onboardingComplete) {
+          router.push("/dashboard");
+        } else {
+          router.push("/onboarding");
+        }
       }
-
-      router.push("/dashboard");
     } catch (err: any) {
       setError(err.message);
     }

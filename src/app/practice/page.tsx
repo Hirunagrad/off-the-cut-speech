@@ -8,6 +8,7 @@ import { analyzeSpeech } from '../actions/analyze';
 import { useAuth } from "@/context/AuthContext";
 import { db } from "@/lib/firebase/config";
 import { collection, addDoc, doc, updateDoc, increment, serverTimestamp, getDoc } from "firebase/firestore";
+import { sounds } from "@/lib/sound";
 
 const TOPICS = {
   Technology: [
@@ -76,6 +77,7 @@ export default function PracticeRoom() {
   // User Data & Results
   const [userData, setUserData] = useState<any>(null);
   const [results, setResults] = useState<AnalysisResults | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
 
   // Custom Audio Player State
   const [isPlaying, setIsPlaying] = useState(false);
@@ -84,6 +86,14 @@ export default function PracticeRoom() {
 
   // Loading Progress State
   const [loadingProgress, setLoadingProgress] = useState(0);
+
+  // PREP Planning State
+  const [isPrepPlanning, setIsPrepPlanning] = useState(false);
+  const [prepDuration, setPrepDuration] = useState(60); // seconds
+  const [prepTimeLeft, setPrepTimeLeft] = useState(60);
+  const [prepRunning, setPrepRunning] = useState(false);
+  const [prepExpanded, setPrepExpanded] = useState(false);
+  const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const recognitionRef = useRef<any>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -175,20 +185,38 @@ export default function PracticeRoom() {
     const finalTopic = availableTopics[Math.floor(Math.random() * availableTopics.length)];
     
     let spins = 0;
-    const interval = setInterval(() => {
+    const maxSpins = 18;
+    let delay = 50; // starts fast
+
+    const runSpin = () => {
+      spins++;
       const randomTopic = availableTopics[Math.floor(Math.random() * availableTopics.length)];
       setDisplayedTopic(randomTopic);
-      spins++;
       
-      if (spins > 15) {
-        clearInterval(interval);
+      // Play high-fidelity click on every slot step
+      sounds.playTick();
+
+      if (spins >= maxSpins) {
+        // Smoothly settle and reveal
         setDisplayedTopic(finalTopic);
         setTimeout(() => {
           setCurrentTopic(finalTopic);
           setIsSpinning(false);
-        }, 800);
+          // Play premium ascending celebratory arpeggio chime
+          sounds.playReveal();
+        }, 400);
+      } else {
+        // Organic deceleration: increase delay as it approaches the end
+        if (spins > 14) {
+          delay += 75; // slow down heavily
+        } else if (spins > 8) {
+          delay += 35; // slow down moderately
+        }
+        setTimeout(runSpin, delay);
       }
-    }, 80);
+    };
+
+    setTimeout(runSpin, delay);
   };
 
   const startRecording = async () => {
@@ -197,6 +225,9 @@ export default function PracticeRoom() {
       return;
     }
     
+    // Play cool digital mic click sound
+    sounds.playMicClick();
+
     setTranscript("");
     transcriptRef.current = "";
     setResults(null);
@@ -243,6 +274,9 @@ export default function PracticeRoom() {
   };
 
   const stopRecording = () => {
+    // Play warm stop tone
+    sounds.playStopRecording();
+
     setIsRecording(false);
     setHasFinishedRecording(true);
     if (recognitionRef.current) recognitionRef.current.stop();
@@ -256,7 +290,20 @@ export default function PracticeRoom() {
   };
 
   const handleAnalysis = async () => {
-    if (!transcriptRef.current.trim() || !currentTopic) return; 
+    // Sync ref from state in case recognition committed late
+    const finalTranscript = transcriptRef.current.trim() || transcript.trim();
+    transcriptRef.current = finalTranscript;
+
+    setAnalysisError(null);
+
+    if (!finalTranscript) {
+      setAnalysisError("No speech detected. Please try recording again.");
+      return;
+    }
+    if (!currentTopic) {
+      setAnalysisError("No topic selected. Please spin for a topic first.");
+      return;
+    }
     
     setIsAnalyzing(true);
     setLoadingProgress(0);
@@ -269,14 +316,16 @@ export default function PracticeRoom() {
     }, 400);
 
     try {
-      const data = await analyzeSpeech(transcriptRef.current, currentTopic);
+      const data = await analyzeSpeech(finalTranscript, currentTopic);
       setResults(data);
+      // Play premium success chime
+      sounds.playSuccess();
 
       if (user) {
         await addDoc(collection(db, `users/${user.uid}/sessions`), {
           date: serverTimestamp(),
           topic: currentTopic,
-          transcript: transcriptRef.current,
+          transcript: finalTranscript,
           scores: data.scores,
           biggestImprovement: data.biggestImprovement,
           flaggedWords: data.flaggedWords
@@ -288,8 +337,9 @@ export default function PracticeRoom() {
           last_practice_date: serverTimestamp()
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Analysis failed:", error);
+      setAnalysisError("Analysis failed. Please try again.");
     } finally {
       clearInterval(loadingInterval);
       setLoadingProgress(100);
@@ -307,6 +357,48 @@ export default function PracticeRoom() {
     setAudioURL(null);
     setAudioProgress(0);
     setIsPlaying(false);
+  };
+
+  const startPrepTimer = () => {
+    setPrepRunning(true);
+    prepTimerRef.current = setInterval(() => {
+      setPrepTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(prepTimerRef.current!);
+          setPrepRunning(false);
+          // Play stop alarm sound
+          sounds.playStopRecording();
+          return 0;
+        }
+        // Play subtle tick on each countdown step
+        sounds.playCountdownTick();
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const resetPrepTimer = () => {
+    if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+    setPrepRunning(false);
+    setPrepTimeLeft(prepDuration);
+  };
+
+  const selectPrepDuration = (secs: number) => {
+    if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+    setPrepRunning(false);
+    setPrepDuration(secs);
+    setPrepTimeLeft(secs);
+  };
+
+  const enterPrepMode = () => {
+    setPrepTimeLeft(prepDuration);
+    setPrepRunning(false);
+    setIsPrepPlanning(true);
+  };
+
+  const exitPrepToRecord = () => {
+    if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+    setIsPrepPlanning(false);
   };
 
   const toggleAudio = () => {
@@ -335,7 +427,7 @@ export default function PracticeRoom() {
 
   if (isFreeAndBlocked) {
     return (
-      <div className="min-h-screen bg-zinc-950 p-6 md:p-12 flex flex-col items-center justify-center">
+      <div className="min-h-screen bg-transparent p-6 md:p-12 flex flex-col items-center justify-center">
         <Card className="max-w-md w-full bg-zinc-900 border-zinc-800 p-8 text-center space-y-6">
           <AlertCircle className="w-16 h-16 text-amber-500 mx-auto" />
           <h3 className="text-2xl font-bold font-heading text-zinc-50">Daily Limit Reached</h3>
@@ -354,11 +446,122 @@ export default function PracticeRoom() {
     );
   }
 
+  // ── Results view: full-width layout matching session detail page ──────────
+  if (results && !isAnalyzing) {
+    return (
+      <div className="min-h-screen bg-transparent px-6 py-12 md:px-12">
+
+        {/* Back button */}
+        <button
+          onClick={() => window.location.href = '/dashboard'}
+          className="fixed top-5 left-5 z-50 flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 rounded-full px-4 py-2 backdrop-blur-sm transition-all"
+        >
+          ← Dashboard
+        </button>
+
+        <div className="max-w-5xl mx-auto pt-8 space-y-8 animate-in slide-in-from-bottom-8 duration-500">
+
+          {/* Header */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold tracking-widest uppercase text-zinc-500">Session Review</p>
+            <h1 className="text-3xl font-heading font-bold text-zinc-50 leading-tight">
+              {currentTopic}
+            </h1>
+            <p className="text-sm text-zinc-500">
+              {new Date().toLocaleString(undefined, {
+                weekday: "long", year: "numeric", month: "long", day: "numeric",
+                hour: "2-digit", minute: "2-digit",
+              })}
+            </p>
+          </div>
+
+          {/* Row 1: Transcript | Coach Feedback */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+            {/* Transcript */}
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-bold tracking-widest uppercase text-zinc-500 px-1">Your Transcript</p>
+              <div className="bg-[#18181b] border border-zinc-800/50 rounded-2xl p-8 flex flex-col gap-6 h-full">
+                <div>
+                  {renderHighlightedTranscript(transcriptRef.current, results.flaggedWords)}
+                </div>
+                <div className="flex flex-wrap gap-6 pt-6 border-t border-zinc-800/50 text-xs font-semibold uppercase tracking-wider mt-auto">
+                  <div className="flex items-center gap-2 text-zinc-400"><span className="w-3 h-3 rounded-full bg-red-500/50" /> Filler</div>
+                  <div className="flex items-center gap-2 text-zinc-400"><span className="w-3 h-3 rounded-full bg-yellow-400/50" /> Hedge</div>
+                  <div className="flex items-center gap-2 text-zinc-400"><span className="w-3 h-3 rounded-full bg-purple-500/50" /> Strong</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Coach Feedback */}
+            <div className="flex flex-col gap-3">
+              <p className="text-xs font-bold tracking-widest uppercase text-zinc-500 px-1">Coach Feedback</p>
+              <div className="bg-[#c084fc]/10 border border-[#c084fc]/20 rounded-2xl p-8 flex flex-col gap-6 h-full">
+                <div className="flex items-center gap-2 text-[#c084fc]">
+                  <Lightbulb className="w-5 h-5" />
+                  <span className="font-bold tracking-wide uppercase text-xs">Biggest Room for Improvement</span>
+                </div>
+                <p className="italic text-zinc-200 leading-relaxed text-xl flex-1">
+                  "{results.biggestImprovement}"
+                </p>
+                <div className="flex flex-col gap-3 mt-auto">
+                  <Button
+                    onClick={() => window.location.reload()}
+                    className="w-full bg-[#c084fc] hover:bg-[#a855f7] text-zinc-950 font-bold rounded-full py-3"
+                  >
+                    Practice Another Topic
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => window.location.href = '/dashboard'}
+                    className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-300 rounded-full bg-transparent"
+                  >
+                    Dashboard
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: 3 Metric Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pb-12">
+            {[
+              { label: "Clarity",     score: results.scores.clarity.score,     feedback: results.scores.clarity.feedback,     color: "#c084fc" },
+              { label: "Filler Rate", score: results.scores.fillerRate.score,   feedback: results.scores.fillerRate.feedback,   color: "#facc15" },
+              { label: "Confidence",  score: results.scores.confidence.score,   feedback: results.scores.confidence.feedback,   color: "#f97316" },
+            ].map(({ label, score, feedback, color }) => (
+              <div key={label} className="bg-[#18181b] border border-zinc-800/50 rounded-2xl p-6 flex flex-col gap-3">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-zinc-200">{label}</span>
+                  <span className="text-3xl font-heading font-bold" style={{ color }}>{score}</span>
+                </div>
+                <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${score}%`, backgroundColor: color }} />
+                </div>
+                <p className="text-sm text-zinc-400 mt-1">{feedback}</p>
+              </div>
+            ))}
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-zinc-950 p-6 md:p-12 flex flex-col items-center pt-24">
+    <div className="min-h-screen bg-transparent p-6 md:p-12 flex flex-col items-center pt-24">
+
+      {/* Back to Dashboard */}
+      <button
+        onClick={() => window.location.href = '/dashboard'}
+        className="fixed top-5 left-5 z-50 flex items-center gap-2 text-sm text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-600 rounded-full px-4 py-2 backdrop-blur-sm transition-all"
+      >
+        ← Dashboard
+      </button>
       
       {/* PHASE 1: SPIN FOR TOPIC */}
       {!currentTopic ? (
+
         <div className="flex flex-col items-center w-full max-w-4xl mx-auto space-y-12 animate-in fade-in zoom-in-95 duration-500">
           <div className="text-center space-y-6">
             <h1 className="text-5xl md:text-7xl font-heading font-bold text-zinc-50 tracking-tight">
@@ -418,6 +621,113 @@ export default function PracticeRoom() {
               
               {!hasFinishedRecording ? (
                 <div className="flex flex-col items-center space-y-8 w-full animate-in fade-in zoom-in-95 duration-500">
+
+                  {/* ── PREP Planning Mode ── */}
+                  {isPrepPlanning ? (
+                    <div className="flex flex-col items-center gap-7 w-full animate-in fade-in zoom-in-95 duration-400">
+
+                      {/* Duration selector */}
+                      <div className="flex gap-2 bg-zinc-900 border border-zinc-800 rounded-full p-1">
+                        {[{label:'30s', secs:30}, {label:'1 min', secs:60}, {label:'2 min', secs:120}].map(({label, secs}) => (
+                          <button
+                            key={secs}
+                            onClick={() => selectPrepDuration(secs)}
+                            className={`px-5 py-2 rounded-full text-sm font-semibold transition-all ${
+                              prepDuration === secs
+                                ? 'bg-[#c084fc] text-zinc-950'
+                                : 'text-zinc-400 hover:text-zinc-200'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* Circular timer */}
+                      <div className="relative w-52 h-52 flex items-center justify-center">
+                        <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+                          <circle cx="50" cy="50" r="46" fill="none" stroke="#27272a" strokeWidth="4"/>
+                          <circle
+                            cx="50" cy="50" r="46" fill="none"
+                            stroke="#c084fc" strokeWidth="4"
+                            strokeLinecap="round"
+                            strokeDasharray={`${2 * Math.PI * 46}`}
+                            strokeDashoffset={`${2 * Math.PI * 46 * (1 - prepTimeLeft / prepDuration)}`}
+                            className="transition-all duration-1000 ease-linear"
+                          />
+                        </svg>
+                        <div className="text-center z-10">
+                          <p className="text-5xl font-heading font-bold text-zinc-50">
+                            {Math.floor(prepTimeLeft / 60)}:{(prepTimeLeft % 60).toString().padStart(2, '0')}
+                          </p>
+                          <p className="text-xs font-bold tracking-widest uppercase text-zinc-500 mt-1">
+                            {prepRunning ? 'Planning' : prepTimeLeft === 0 ? 'Done!' : 'Ready'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Play / Reset buttons */}
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={prepRunning ? () => { clearInterval(prepTimerRef.current!); setPrepRunning(false); } : startPrepTimer}
+                          disabled={prepTimeLeft === 0}
+                          className="w-14 h-14 rounded-full bg-[#c084fc] hover:bg-[#a855f7] flex items-center justify-center shadow-[0_0_30px_rgba(192,132,252,0.3)] transition-all disabled:opacity-40"
+                        >
+                          {prepRunning
+                            ? <Square className="w-5 h-5 text-zinc-950 fill-current" />
+                            : <Play className="w-5 h-5 text-zinc-950 ml-0.5 fill-current" />}
+                        </button>
+                        <button
+                          onClick={resetPrepTimer}
+                          className="w-11 h-11 rounded-full border border-zinc-700 hover:border-zinc-500 flex items-center justify-center text-zinc-400 hover:text-zinc-200 transition-all"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      {/* PREP Structure accordion */}
+                      <div className="w-full border border-zinc-800 rounded-2xl overflow-hidden">
+                        <button
+                          onClick={() => setPrepExpanded(!prepExpanded)}
+                          className="w-full flex items-center justify-between px-6 py-4 bg-zinc-900/80 text-xs font-bold tracking-widest uppercase text-zinc-400 hover:text-zinc-200 transition-colors"
+                        >
+                          <span>Structure with PREP</span>
+                          <span className={`transition-transform duration-200 ${prepExpanded ? 'rotate-180' : ''}`}>▾</span>
+                        </button>
+                        {prepExpanded && (
+                          <div className="bg-zinc-900/40 px-6 pb-6 pt-2 grid grid-cols-2 gap-4 animate-in fade-in duration-200">
+                            {[
+                              { letter:'P', title:'Point', desc:'State your main stance clearly up front.', color:'#c084fc' },
+                              { letter:'R', title:'Reason', desc:'Give the core reason behind your point.', color:'#818cf8' },
+                              { letter:'E', title:'Example', desc:'Back it up with a specific example.', color:'#38bdf8' },
+                              { letter:'P', title:'Point', desc:'Close by restating your position.', color:'#c084fc' },
+                            ].map((step, i) => (
+                              <div key={i} className="flex gap-3 items-start">
+                                <span className="w-8 h-8 rounded-full flex items-center justify-center font-heading font-bold text-sm shrink-0 bg-zinc-800" style={{ color: step.color }}>
+                                  {step.letter}
+                                </span>
+                                <div>
+                                  <p className="font-bold text-zinc-200 text-sm">{step.title}</p>
+                                  <p className="text-xs text-zinc-500 mt-0.5 leading-relaxed">{step.desc}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* I'm ready to record */}
+                      <button
+                        onClick={exitPrepToRecord}
+                        className="w-full py-4 bg-zinc-100 hover:bg-white text-zinc-950 font-bold rounded-full text-lg transition-all shadow-lg"
+                      >
+                        I'm ready to record
+                      </button>
+                    </div>
+
+                  ) : (
+                    /* ── Normal recording UI ── */
+                    <>
                   <div className="text-8xl font-heading font-bold text-zinc-50 tracking-tight">
                     {timeLeft === 60 ? '1:00' : `0:${timeLeft.toString().padStart(2, '0')}`}
                   </div>
@@ -434,9 +744,11 @@ export default function PracticeRoom() {
                   </p>
 
                   {!isRecording && (
-                    <Button variant="outline" className="rounded-full border-zinc-700 bg-transparent hover:bg-zinc-800 text-zinc-300 px-6 mt-4">
+                    <Button variant="outline" onClick={enterPrepMode} className="rounded-full border-zinc-700 bg-transparent hover:bg-zinc-800 text-zinc-300 px-6 mt-4">
                       <Activity className="w-4 h-4 mr-2" /> Plan with PREP first
                     </Button>
+                  )}
+                    </>
                   )}
                 </div>
               ) : (
@@ -482,6 +794,15 @@ export default function PracticeRoom() {
                       <Send className="w-5 h-5 mr-2" />
                       Get Analysis
                     </Button>
+
+                    {/* Error message */}
+                    {analysisError && (
+                      <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {analysisError}
+                      </div>
+                    )}
+
                     <Button 
                       size="lg" 
                       variant="outline"
@@ -509,102 +830,6 @@ export default function PracticeRoom() {
                      style={{ width: `${loadingProgress}%` }}
                    />
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Results Area */}
-          {results && !isAnalyzing && (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 w-full max-w-6xl mx-auto animate-in slide-in-from-bottom-8 duration-500 pb-20">
-              
-              {/* Left Column: Highlighted Transcript */}
-              <div className="lg:col-span-7 flex flex-col space-y-4">
-                <h3 className="text-sm font-bold tracking-widest uppercase text-zinc-500 px-2">Your Transcript</h3>
-                <Card className="bg-[#18181b] border-zinc-800/50 p-8 shadow-2xl flex flex-col gap-6">
-                  <div>
-                    {renderHighlightedTranscript(transcriptRef.current, results.flaggedWords)}
-                  </div>
-                  
-                  {/* Legend */}
-                  <div className="flex flex-wrap gap-6 pt-6 border-t border-zinc-800/50 text-xs font-semibold uppercase tracking-wider">
-                    <div className="flex items-center gap-2 text-zinc-400">
-                      <span className="w-3 h-3 rounded-full bg-red-500/50" /> Filler
-                    </div>
-                    <div className="flex items-center gap-2 text-zinc-400">
-                      <span className="w-3 h-3 rounded-full bg-yellow-400/50" /> Hedge
-                    </div>
-                    <div className="flex items-center gap-2 text-zinc-400">
-                      <span className="w-3 h-3 rounded-full bg-purple-500/50" /> Strong
-                    </div>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Right Column: Metrics Stack */}
-              <div className="lg:col-span-5 flex flex-col space-y-6">
-                 <h3 className="text-sm font-bold tracking-widest uppercase text-zinc-500 px-2">Performance Metrics</h3>
-                 
-                 {/* Clarity Card */}
-                 <Card className="bg-[#18181b] border-zinc-800/50 p-6 shadow-xl flex flex-col gap-3">
-                   <div className="flex justify-between items-center">
-                     <span className="font-bold text-zinc-200">Clarity</span>
-                     <span className="text-3xl font-heading font-bold text-[#c084fc]">{results.scores.clarity.score}</span>
-                   </div>
-                   <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-[#c084fc] transition-all duration-1000 ease-out" style={{ width: `${results.scores.clarity.score}%` }} />
-                   </div>
-                   <p className="text-sm text-zinc-400 mt-2">{results.scores.clarity.feedback}</p>
-                 </Card>
-
-                 {/* Filler Rate Card */}
-                 <Card className="bg-[#18181b] border-zinc-800/50 p-6 shadow-xl flex flex-col gap-3">
-                   <div className="flex justify-between items-center">
-                     <span className="font-bold text-zinc-200">Filler Rate</span>
-                     <span className="text-3xl font-heading font-bold text-yellow-400">{results.scores.fillerRate.score}</span>
-                   </div>
-                   <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-yellow-400 transition-all duration-1000 ease-out" style={{ width: `${results.scores.fillerRate.score}%` }} />
-                   </div>
-                   <p className="text-sm text-zinc-400 mt-2">{results.scores.fillerRate.feedback}</p>
-                 </Card>
-
-                 {/* Confidence Card */}
-                 <Card className="bg-[#18181b] border-zinc-800/50 p-6 shadow-xl flex flex-col gap-3">
-                   <div className="flex justify-between items-center">
-                     <span className="font-bold text-zinc-200">Confidence</span>
-                     <span className="text-3xl font-heading font-bold text-orange-400">{results.scores.confidence.score}</span>
-                   </div>
-                   <div className="w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
-                     <div className="h-full bg-orange-500 transition-all duration-1000 ease-out" style={{ width: `${results.scores.confidence.score}%` }} />
-                   </div>
-                   <p className="text-sm text-zinc-400 mt-2">{results.scores.confidence.feedback}</p>
-                 </Card>
-
-                 {/* Biggest Improvement */}
-                 <Card className="bg-[#c084fc]/10 border-[#c084fc]/20 p-6 shadow-xl mt-4">
-                   <div className="flex items-center gap-2 text-[#c084fc] mb-4">
-                     <Lightbulb className="w-5 h-5" />
-                     <span className="font-bold tracking-wide uppercase text-xs">Biggest Room for Improvement</span>
-                   </div>
-                   <p className="italic text-zinc-200 leading-relaxed text-lg">"{results.biggestImprovement}"</p>
-                   
-                   <div className="mt-8 flex flex-col gap-3">
-                     <Button 
-                       onClick={() => window.location.reload()}
-                       className="w-full bg-[#c084fc] hover:bg-[#a855f7] text-zinc-950 font-bold rounded-full"
-                     >
-                       Practice Another Topic
-                     </Button>
-                     <Button 
-                       variant="outline"
-                       onClick={() => window.location.href = '/dashboard'}
-                       className="w-full border-zinc-700 hover:bg-zinc-800 text-zinc-300 rounded-full bg-transparent"
-                     >
-                       Dashboard
-                     </Button>
-                   </div>
-                 </Card>
-
               </div>
             </div>
           )}
