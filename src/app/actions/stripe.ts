@@ -23,6 +23,7 @@ export async function createCheckoutSession(userId: string, challengeType: Chall
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       mode: 'setup',
+      customer_creation: 'always',
       success_url: `${baseUrl}/dashboard?challenge_started=${challengeType}`,
       cancel_url: `${baseUrl}/pricing`,
       metadata: {
